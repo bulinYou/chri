@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>圣诞快乐</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #010103; }
+        canvas { display: block; }
+        
+        #loader-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #000;
+            z-index: 999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-family: sans-serif;
+        }
+        .spinner {
+            width: 40px; height: 40px;
+            border: 4px solid #333;
+            border-top: 4px solid #ffb6c1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        #status-text { margin-bottom: 20px; color: #aaa; }
+        
+        #fix-btn {
+            display: none;
+            padding: 10px 20px;
+            background: #2255aa;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #fix-btn:hover { background: #3366cc; }
+        #info {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 182, 193, 0.7);
+            font-family: "Microsoft YaHei", sans-serif;
+            pointer-events: none;
+            user-select: none;
+            text-shadow: 0 0 5px #ff69b4;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loader-screen">
+        <div class="spinner"></div>
+        <div id="status-text">正在连接线路 1 (360 CDN)...</div>
+        <button id="fix-btn" onclick="loadScript(1)">太慢了？点我切换到线路 2</button>
+    </div>
+
+    <div id="info">❄️ 圣诞快乐 小莹同学 ❄️</div>
+
+    <script>
+        const sources = [
+            "./three.min.js",
+            "./three.min.js",
+            "./three.min.js"
+        ];
+
+        let loadTimer = null;
+
+        function loadScript(index) {
+            if (index >= sources.length) index = 0;
+            const url = sources[index];
+            const statusText = document.getElementById('status-text');
+            const fixBtn = document.getElementById('fix-btn');
+            
+            let sourceName = "360 CDN";
+            if(url.includes("bytecdntp")) sourceName = "字节跳动 CDN";
+            if(url.includes("staticfile")) sourceName = "七牛云 CDN";
+            
+            statusText.innerText = `正在尝试线路 ${index + 1} (${sourceName})...`;
+            fixBtn.style.display = 'none';
+
+            const script = document.createElement('script');
+            script.src = url;
+            script.onload = function() {
+                statusText.innerText = "资源加载成功，正在凝结雪晶...";
+                setTimeout(initGame, 100);
+            };
+            script.onerror = function() {
+                loadScript(index + 1);
+            };
+            document.body.appendChild(script);
+
+            if(loadTimer) clearTimeout(loadTimer);
+            loadTimer = setTimeout(() => {
+                if(typeof THREE === 'undefined') {
+                    statusText.innerText = "当前线路响应较慢...";
+                    fixBtn.innerText = `切换到线路 ${index + 2 > sources.length ? 1 : index + 2}`;
+                    fixBtn.setAttribute('onclick', `loadScript(${index + 1})`);
+                    fixBtn.style.display = 'block';
+                }
+            }, 3000);
+        }
+
+        loadScript(0);
+
+        function initGame() {
+            document.getElementById('loader-screen').style.display = 'none';
+            const scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x010103, 0.0025); 
+
+            const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 8, 65);
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true; 
+            document.body.appendChild(renderer.domElement);
+
+            // 灯光
+            scene.add(new THREE.AmbientLight(0x222244, 0.5));
+            const pointLight = new THREE.PointLight(0xffffff, 0.8, 100);
+            pointLight.position.set(20, 20, 20);
+            pointLight.castShadow = true;
+            scene.add(pointLight);
+            
+            const pinkLight = new THREE.PointLight(0xffb6c1, 0.4, 80);
+            pinkLight.position.set(-20, 10, 20);
+            scene.add(pinkLight);
+
+            // 交互
+            let isDragging = false, prevX = 0, prevY = 0;
+            let rotationY = 0, cameraY = 8, radius = 65;
+
+            document.addEventListener('mousedown', (e) => { isDragging = true; prevX=e.clientX; prevY=e.clientY; });
+            document.addEventListener('mouseup', () => isDragging = false);
+            document.addEventListener('mousemove', (e) => {
+                if(isDragging) {
+                    rotationY -= (e.clientX - prevX) * 0.005;
+                    cameraY += (e.clientY - prevY) * 0.1;
+                    prevX = e.clientX; prevY = e.clientY;
+                }
+            });
+            document.addEventListener('wheel', (e) => {
+                radius += e.deltaY * 0.05;
+                radius = Math.max(20, Math.min(120, radius));
+            });
+
+            const treeGroup = new THREE.Group();
+            scene.add(treeGroup);
+
+            // 树干
+            const trunk = new THREE.Mesh(
+                new THREE.CylinderGeometry(1, 2, 10, 16),
+                new THREE.MeshStandardMaterial({ color: 0x111115 })
+            );
+            trunk.position.y = -18.5;
+            trunk.castShadow = true; trunk.receiveShadow = true;
+            treeGroup.add(trunk);
+
+            // 1. 树叶
+            const leafGeo = new THREE.BufferGeometry();
+            const leafPos = [];
+            const leafColors = [];
+            const blueDeep = new THREE.Color(0x0033aa);
+            const blueMid = new THREE.Color(0x2266cc);
+            const blueLight = new THREE.Color(0x66aaff);
+
+            for(let i=0; i<3000; i++) {
+                const y = (Math.random() * 45) - 22.5;
+                const normH = (y + 22.5) / 45;
+                const spiral = normH * Math.PI * 3 + (i%5/5)*Math.PI*2 + (Math.random()-0.5)*1.6;
+                const r = (1 - normH) * 16 * (0.8 + Math.random()*0.4);
+                leafPos.push(r * Math.cos(spiral), y, r * Math.sin(spiral));
+                let color;
+                if (normH < 0.2) color = blueDeep.clone().lerp(blueMid, Math.random());
+                else color = blueMid.clone().lerp(blueLight, Math.random() * 0.8 + (normH-0.2));
+                leafColors.push(color.r, color.g, color.b);
+            }
+            leafGeo.setAttribute('position', new THREE.Float32BufferAttribute(leafPos, 3));
+            leafGeo.setAttribute('color', new THREE.Float32BufferAttribute(leafColors, 3));
+            const tree = new THREE.Points(leafGeo, new THREE.PointsMaterial({
+                size: 3.5, vertexColors: true, map: createSnowflakeTexture(), 
+                transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.NormalBlending 
+            }));
+            treeGroup.add(tree);
+
+            // 2. 彩灯
+            const ornamentGeo = new THREE.BufferGeometry();
+            const oPos = [];
+            const oColors = [];
+            for(let i=0; i<400; i++) { 
+                const y = (Math.random() * 45) - 22.5;
+                const normH = (y + 22.5) / 45;
+                const spiral = normH * Math.PI * 3 + (i%5/5)*Math.PI*2;
+                const r = ((1 - normH) * 16) + 0.5 + Math.random(); 
+                oPos.push(r * Math.cos(spiral), y, r * Math.sin(spiral));
+                const c = Math.random() > 0.5 ? new THREE.Color(0xffffff) : new THREE.Color(0xddeeff);
+                oColors.push(c.r, c.g, c.b);
+            }
+            ornamentGeo.setAttribute('position', new THREE.Float32BufferAttribute(oPos, 3));
+            ornamentGeo.setAttribute('color', new THREE.Float32BufferAttribute(oColors, 3));
+            const ornaments = new THREE.Points(ornamentGeo, new THREE.PointsMaterial({
+                size: 1.5, vertexColors: true, map: createCircleTexture(), 
+                blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 1.0
+            }));
+            treeGroup.add(ornaments);
+
+            // 3. 星光大道
+            const roadGeo = new THREE.BufferGeometry();
+            const roadPos = [];
+            const roadColors = [];
+            const romanticPalette = [new THREE.Color(0xffb6c1), new THREE.Color(0xffc0cb), new THREE.Color(0xe6e6fa)];
+            for(let i=0; i<1000; i++) { 
+                const p = i/1000;
+                const y = -22.5 + p * 45;
+                const angle = p * Math.PI * 2 * 4.5;
+                const r = (1-p)*16 + 2.8 + (Math.random()-0.5); 
+                roadPos.push(r*Math.cos(angle), y, r*Math.sin(angle));
+                const c = romanticPalette[Math.floor(Math.random() * romanticPalette.length)];
+                roadColors.push(c.r, c.g, c.b);
+            }
+            roadGeo.setAttribute('position', new THREE.Float32BufferAttribute(roadPos, 3));
+            roadGeo.setAttribute('color', new THREE.Float32BufferAttribute(roadColors, 3));
+            const road = new THREE.Points(roadGeo, new THREE.PointsMaterial({
+                size: 1.8, vertexColors: true, map: createCircleTexture(), 
+                blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.5
+            }));
+            treeGroup.add(road);
+
+            // 4. 礼物
+            const giftGroup = new THREE.Group();
+            treeGroup.add(giftGroup);
+            const giftColors = [0xd62828, 0xff0000, 0xb30000, 0xff4d4d]; 
+            const ribbonColor = 0x0066ff; 
+            function createGift(x, z, s) {
+                const color = giftColors[Math.floor(Math.random() * giftColors.length)];
+                const box = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), new THREE.MeshStandardMaterial({ color: color, roughness: 0.3 }));
+                const rMat = new THREE.MeshStandardMaterial({ color: ribbonColor, roughness: 0.2, emissive: 0x001133 }); 
+                box.add(new THREE.Mesh(new THREE.BoxGeometry(s*1.02, s, s*0.2), rMat));
+                box.add(new THREE.Mesh(new THREE.BoxGeometry(s*0.2, s, s*1.02), rMat));
+                const groundLevel = -22.5 + s/2 - 1; 
+                box.position.set(x, groundLevel, z); 
+                box.rotation.y = Math.random();
+                box.castShadow = true;
+                return box;
+            }
+            for(let i=0; i<15; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const r = 4 + Math.random() * 10; 
+                giftGroup.add(createGift(Math.cos(angle)*r, Math.sin(angle)*r, 1.2 + Math.random()));
+            }
+
+            // 5. 树顶星
+            const star = new THREE.Points(
+                new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 24.5, 0)]),
+                new THREE.PointsMaterial({ size: 8, color: 0xffffff, map: createStarTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })
+            );
+            scene.add(star);
+            const starGlow = new THREE.Points(
+                new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 24.5, 0)]),
+                new THREE.PointsMaterial({ size: 30, color: 0xffffee, map: createGlowTexture(), transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false })
+            );
+            scene.add(starGlow);
+
+            // 6. 地面积雪
+            const groundGeo = new THREE.BufferGeometry();
+            const groundPos = [];
+            for(let i=0; i<2500; i++) {
+                const r = Math.random() * 45; 
+                const theta = Math.random() * Math.PI * 2;
+                const x = r * Math.cos(theta);
+                const z = r * Math.sin(theta);
+                const y = -23.5 + Math.random() * 1.5; 
+                groundPos.push(x, y, z);
+            }
+            groundGeo.setAttribute('position', new THREE.Float32BufferAttribute(groundPos, 3));
+            const groundSnow = new THREE.Points(groundGeo, new THREE.PointsMaterial({
+                size: 1.2, color: 0xe6e6fa, map: createSnowflakeTexture(), transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending
+            }));
+            treeGroup.add(groundSnow); 
+
+            // ==========================================
+            // 7. 【重构】多层漫天飞雪系统
+            // ==========================================
+            const snowGroup = new THREE.Group();
+            scene.add(snowGroup);
+            const snowLayers = [];
+
+            function createSnowLayer(count, size, speed) {
+                const geo = new THREE.BufferGeometry();
+                const pos = [];
+                for(let i=0; i<count; i++) {
+                    pos.push((Math.random()-0.5)*150, (Math.random()-0.5)*120, (Math.random()-0.5)*150);
+                }
+                geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+                const mat = new THREE.PointsMaterial({
+                    color: 0xe6e6fa,
+                    size: size, // 差异化大小
+                    transparent: true, 
+                    opacity: 0.8, 
+                    map: createSnowflakeTexture(), // 全部使用精致雪花纹理
+                    depthWrite: false
+                });
+                const points = new THREE.Points(geo, mat);
+                points.userData = { speed: speed }; // 差异化速度
+                snowGroup.add(points);
+                snowLayers.push(points);
+            }
+
+            // 创建三层雪：
+            // 1. 远景微尘：数量多，极小，极慢
+            createSnowLayer(1500, 0.5, 0.03);
+            // 2. 中景飘雪：数量中，大小适中，速度适中
+            createSnowLayer(1000, 1.0, 0.06);
+            // 3. 近景大雪：数量少，巨大，下落稍快（沉重感），近大远小效果最明显
+            createSnowLayer(400, 2.0, 0.09);
+            // ==========================================
+
+            const clock = new THREE.Clock();
+            function animate() {
+                requestAnimationFrame(animate);
+                const time = clock.getElapsedTime();
+
+                camera.position.x = Math.sin(rotationY) * radius;
+                camera.position.z = Math.cos(rotationY) * radius;
+                camera.position.y += (cameraY - camera.position.y) * 0.1;
+                camera.lookAt(0, 0, 0);
+
+                treeGroup.rotation.y = time * 0.1;
+                
+                const blink = Math.sin(time * 3) * 0.5 + 0.5;
+                ornaments.material.size = 1.5 + blink * 0.8;
+                ornaments.material.opacity = 0.6 + blink * 0.4;
+                road.material.opacity = 0.3 + blink * 0.3; 
+                star.material.opacity = 0.8 + Math.sin(time*4)*0.2;
+                star.rotation.y = -time * 0.2;
+                starGlow.material.size = 30 + Math.sin(time*2) * 5;
+                starGlow.material.opacity = 0.3 + Math.sin(time*2) * 0.1;
+
+                // 飘雪动画更新
+                snowLayers.forEach(layer => {
+                    const positions = layer.geometry.attributes.position.array;
+                    const speed = layer.userData.speed;
+                    for(let i=1; i<positions.length; i+=3) {
+                        positions[i] -= speed; // 使用各层的特定速度
+                        // 循环降落
+                        if(positions[i] < -50) positions[i] = 50;
+                    }
+                    layer.geometry.attributes.position.needsUpdate = true;
+                });
+
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        // 纹理函数
+        function createSnowflakeTexture() {
+            const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+            const ctx = c.getContext('2d'); ctx.translate(32,32);
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+            for(let i=0; i<6; i++) {
+                ctx.rotate(Math.PI/3); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,26); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0,14); ctx.lineTo(6,20); ctx.moveTo(0,14); ctx.lineTo(-6,20); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0,20); ctx.lineTo(4,24); ctx.moveTo(0,20); ctx.lineTo(-4,24); ctx.stroke();
+            }
+            const g = ctx.createRadialGradient(0,0,0,0,0,15);
+            g.addColorStop(0,'rgba(255,255,255,0.8)'); g.addColorStop(1,'rgba(255,255,255,0)');
+            ctx.fillStyle = g; ctx.fillRect(-32,-32,64,64);
+            return new THREE.CanvasTexture(c);
+        }
+
+        function createCircleTexture() {
+            const c = document.createElement('canvas'); c.width = 32; c.height = 32;
+            const ctx = c.getContext('2d');
+            const g = ctx.createRadialGradient(16,16,0,16,16,16);
+            g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(1,'rgba(0,0,0,0)');
+            ctx.fillStyle = g; ctx.fillRect(0,0,32,32);
+            return new THREE.CanvasTexture(c);
+        }
+
+        function createStarTexture() {
+            const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+            const ctx = c.getContext('2d'); ctx.translate(32,32);
+            ctx.fillStyle = '#ccffff'; ctx.shadowColor='#88ccff'; ctx.shadowBlur=20;
+            ctx.beginPath();
+            for(let i=0; i<6; i++) { ctx.lineTo(0,-25); ctx.rotate(Math.PI/6); ctx.lineTo(0,-8); ctx.rotate(Math.PI/6); }
+            ctx.fill(); return new THREE.CanvasTexture(c);
+        }
+
+        function createGlowTexture() {
+            const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+            const ctx = c.getContext('2d');
+            const g = ctx.createRadialGradient(32,32,0,32,32,32);
+            g.addColorStop(0, 'rgba(255, 255, 220, 0.8)');
+            g.addColorStop(0.4, 'rgba(255, 240, 200, 0.2)');
+            g.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = g; ctx.fillRect(0,0,64,64);
+            return new THREE.CanvasTexture(c);
+        }
+    </script>
+</body>
+</html>
